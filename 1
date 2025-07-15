@@ -1,0 +1,67 @@
+import unittest
+import requests
+from requests.auth import HTTPBasicAuth
+import uuid
+from azure.cosmos import CosmosClient
+from datetime import datetime, timedelta, timezone
+import pandas as pd
+import json
+
+url = 'https://chatbotuserdata.documents.azure.com:443/'
+
+database_name = 'askchatbot'
+container_name = 'first'
+cosmoclient = CosmosClient(url, credential=key)
+database = cosmoclient.get_database_client(database_name)
+container = database.get_container_client(container_name)
+query_end=datetime.now(timezone.utc).isoformat()
+query = f"""
+SELECT first.name, first.Input, first.output_query, first.text_response, first.table_output, first.additional_message, first.query_time
+FROM first
+WHERE first.name NOT IN ("Alex Wilber", "test_user")
+AND NOT CONTAINS(first.name, "Contractor")
+AND first.query_time >= '2025-04-29T05:41:02.987880+00:00'
+AND first.query_time <= '{query_end}'
+"""
+print(query)
+# query = "SELECT first.Input, first.output_query, first.table_output FROM first WHERE first.name = 'test_user' AND first.query_time >= '2025-03-19T11:50:01.870796' AND first.query_time <= '2025-03-19T12:50:01.870796'"
+items = list(container.query_items(query=query, enable_cross_partition_query=True))
+# Convert the list of items to a DataFrame
+df = pd.DataFrame(items)
+
+# Drop the 'main_prompt' column
+# df = df.drop(columns=['final_prompt'])
+# Rename and rearrange the columns
+df = df.rename(columns={
+    'name': 'Username',
+    'Input': 'Input',
+    'output_query': 'Output Query',
+    'text_response': 'Text Response',
+    'table_output': 'Table Output',
+    'additional_message': 'Query Description',
+    'query_time': 'Query Time'
+})
+
+df['Date'] = pd.to_datetime(df['Query Time']).dt.date
+df = df.sort_values(by='Query Time', ascending=False)
+
+# Save the DataFrame to an Excel file
+# This file contains the logging data of clients from 30th April 2025 to the till date
+df.to_excel('Ask_Analytics_Logging_data_0430_till_date.xlsx', index=False)
+# print(items)
+# Create a Pandas Excel writer using XlsxWriter as the engine
+# with pd.ExcelWriter('Ask_Analytics_Logging_data_2503.xlsx', engine='xlsxwriter') as writer:
+#     for i, data in enumerate(items):
+#         # Create DataFrame for Input and Output query
+#         input_output_df = pd.DataFrame({
+#             'Username': [data['name']],
+#             'Input': [data['Input']],
+#             'Output Query': [data['output_query']], 
+#             'Text Response': [data['text_response']],
+#             'Table Output': [data['table_output']], 
+#             'Query Description': [data['additional_message']],
+#             'Query Time': [data['query_time']]
+#         })
+
+#         # Write Input and Output query DataFrame to Excel file
+#         input_output_df.to_excel(writer,index=False)
