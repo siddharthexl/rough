@@ -1,108 +1,75 @@
-import unittest
 import requests
 from requests.auth import HTTPBasicAuth
 import uuid
 from azure.cosmos import CosmosClient
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 import pandas as pd
 import json
 
 def fetch_data_from_cosmos(query_start, query_end):
-        print("Fetching the data...")
-        url = 'https://chatbotuserdata.documents.azure.com:443/'
-        key = 'iszzjpdl9oGFY6jmUBlcNAwpHX8XGJZTDZsk0ZmzyP4kY8mNprtAkk573ROFQynUOX797ep2VoFVACDbwmcxBA=='
-        database_name = 'askchatbot'
-        container_name = 'first'
-        cosmoclient = CosmosClient(url, credential=key)
-        database = cosmoclient.get_database_client(database_name)
-        container = database.get_container_client(container_name)
-        query = f"""
-SELECT first.Input, first.output_query, first.text_response, first.table_output
-FROM first
-WHERE first.name = 'test_user'
-AND first.query_time >= '{query_start}'
-AND first.query_time <= '{query_end}'
-"""
-        print(query)
-        # query = "SELECT first.Input, first.output_query, first.table_output FROM first WHERE first.name = 'test_user' AND first.query_time >= '2025-03-19T11:50:01.870796' AND first.query_time <= '2025-03-19T12:50:01.870796'"
-        items = list(container.query_items(query=query, enable_cross_partition_query=True))
-        print(items)
-        # Create a Pandas Excel writer using XlsxWriter as the engine
-        with pd.ExcelWriter('unit_test_output1.xlsx', engine='xlsxwriter') as writer:
-            for i, data in enumerate(items):
-                # Create DataFrame for Input and Output query
-                input_output_df = pd.DataFrame({
-                    'Input': [data['Input']],
-                    'Output Query': [data['output_query'] if data['output_query'] != "None" else data['text_response']]
-                })
+    print("Fetching the data...")
+    url = 'https://chatbotuserdata.documents.azure.com:443/'
+    key = 'iszzjpdl9oGFY6jmUBlcNAwpHX8XGJZTDZsk0ZmzyP4kY8mNprtAkk573ROFQynUOX797ep2VoFVACDbwmcxBA=='
+    database_name = 'askchatbot'
+    container_name = 'first'
+    cosmoclient = CosmosClient(url, credential=key)
+    database = cosmoclient.get_database_client(database_name)
+    container = database.get_container_client(container_name)
 
-                # Write Input and Output query DataFrame to Excel file
-                input_output_df.to_excel(writer, sheet_name=f'Sheet{i+1}', index=False, startcol=0)
+    query = f"""
+    SELECT first.Input, first.output_query, first.text_response, first.table_output
+    FROM first
+    WHERE first.name = 'test_user'
+    AND first.query_time >= '{query_start}'
+    AND first.query_time <= '{query_end}'
+    """
+    items = list(container.query_items(query=query, enable_cross_partition_query=True))
 
-                # Check if table_output is None
-                if data['table_output'] != 'None':
-                    # Convert table_output to DataFrame
-                    table_output_df = pd.DataFrame(json.loads(data['table_output']))
-                    # Write table_output DataFrame to Excel file with one column gap
-                    table_output_df.to_excel(writer, sheet_name=f'Sheet{i+1}', index=False, startcol=3)
-                else:
-                    # Write a message indicating that the table output is None with one column gap
-                    none_df = pd.DataFrame({"Message": ["No table output available"]})
-                    none_df.to_excel(writer, sheet_name=f'Question{i+1}', index=False, startcol=3)
+    with pd.ExcelWriter('single_question_output.xlsx', engine='xlsxwriter') as writer:
+        for i, data in enumerate(items):
+            input_output_df = pd.DataFrame({
+                'Input': [data['Input']],
+                'Output Query': [data['output_query'] if data['output_query'] != "None" else data['text_response']]
+            })
+            input_output_df.to_excel(writer, sheet_name=f'Sheet{i+1}', index=False, startcol=0)
 
-        print("Data has been written to unit_test_output.xlsx with input query and table output in the same sheet with one column gap.")
-        # with pd.ExcelWriter('unit_test_output.xlsx', engine='xlsxwriter') as writer:
-        #         for i, data in enumerate(items):
-        # # Create DataFrame for Input and Output query
-        #             input_output_df = pd.DataFrame({
-        #                 'Input': [data['Input']],
-        #                 'Output Query': [data['output_query'] if data['output_query']!="None" else data['text_response']]
-        #             })
+            if data['table_output'] != 'None':
+                table_output_df = pd.DataFrame(json.loads(data['table_output']))
+                table_output_df.to_excel(writer, sheet_name=f'Sheet{i+1}', index=False, startcol=3)
+            else:
+                none_df = pd.DataFrame({"Message": ["No table output available"]})
+                none_df.to_excel(writer, sheet_name=f'Sheet{i+1}', index=False, startcol=3)
 
-        #             # Write Input and Output query DataFrame to Excel file
-        #             input_output_df.to_excel(writer, sheet_name=f'Sheet{i+1}_Input_Output', index=False)
+    print("Data written to single_question_output.xlsx")
 
-        #             # Check if table_output is None
-        #             if data['table_output']!='None':
-        #                 # Convert table_output to DataFrame
-        #                 table_output_df = pd.DataFrame(json.loads(data['table_output']))
-        #                 # Write table_output DataFrame to Excel file
-        #                 table_output_df.to_excel(writer, sheet_name=f'Sheet{i+1}_Table_Output', index=False)
-        #             else:
-        #                 # Write a message indicating that the table output is None
-        #                 none_df = pd.DataFrame({"Message": ["No table output available"]})
-        #                 none_df.to_excel(writer, sheet_name=f'Sheet{i+1}_Table_Output', index=False)
-       
+def ask_single_question(question):
+    url = "https://testanalytics18mar.azurewebsites.net/gpt-request"
+    auth = HTTPBasicAuth('Convobi', 'CBMA@2024')
+    userId = "test_user_id"
+    userName = "test_user"
+    userMail = "test_user_email@example.com"
+    uniqueId = str(uuid.uuid4())
 
+    query_start = datetime.now(timezone.utc).isoformat()
 
-class TestWebApp(unittest.TestCase):
-    def setUp(self):
-        self.url = "https://testanalytics18mar.azurewebsites.net/gpt-request"
-        self.questions = ["Bi Sales in last 6 months",
-            "sales vs target in Jan 2025", "who is pm of india"
-        ]
-        self.auth = HTTPBasicAuth('Convobi','CBMA@2024')
-        # self.userMessage = "Your test message"
-        self.userId = "test_user_id"
-        self.userName = "test_user"
-        self.uniqueId = str(uuid.uuid4())
-        self.userMail = "test_user_email@example.com"
+    payload = {
+        "prompt": question,
+        "userId": userId,
+        "userName": userName,
+        "uniqueId": uniqueId,
+        "userMail": userMail
+    }
 
-    def test_generate_sql_query_and_data(self):
-        query_start=datetime.now(timezone.utc).isoformat()
-        for question in self.questions:
-            with self.subTest(question=question):
-                payload = {
-                    "prompt": question,
-                    "userId": self.userId,
-                    "userName": self.userName,
-                    "uniqueId": str(uuid.uuid4()),
-                    "userMail": self.userMail
-                }
-                response = requests.post(self.url, json=payload, auth=self.auth)
-                self.assertEqual(response.status_code, 200)
-        query_end=datetime.now(timezone.utc).isoformat()
-        fetch_data_from_cosmos(query_start, query_end)
+    response = requests.post(url, json=payload, auth=auth)
+    if response.status_code == 200:
+        print("Request successful.")
+    else:
+        print(f"Request failed with status code {response.status_code}")
+
+    query_end = datetime.now(timezone.utc).isoformat()
+    fetch_data_from_cosmos(query_start, query_end)
+
+# Example usage
 if __name__ == "__main__":
-    unittest.main()
-    
+    question = input("Enter your question: ")
+    ask_single_question(question)
