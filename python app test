@@ -1,0 +1,34 @@
+import pandas as pd
+import pyodbc
+import traceback
+# Read the CSV file into a DataFrame
+#Note change forward slashes to double slashes
+
+connection_string = 'Driver={ODBC Driver 18 for SQL Server};Server=tcp:exl-rmti-training-app-server.database.windows.net,1433;Database=exl-rmti-training-app;Uid=exl-rmti-admin;Pwd=training@123;Encrypt=yes;TrustServerCertificate=no;Connection Timeout=30;'
+
+conn = pyodbc.connect(connection_string)
+cursor = conn.cursor()
+
+query_sub= '''SELECT
+  state,
+  COUNT(DISTINCT city) AS "Number of cities"
+FROM dbo.orders_data
+GROUP BY
+  state
+ORDER BY
+  state;'''
+cursor.execute(query_sub)
+z=cursor.fetchall()
+columns = [desc[0] for desc in cursor.description]
+
+frame = {column: [] for column in columns}
+
+# Iterate through the list of tuples and append the elements to the corresponding lists
+for i in range(len(z)):
+    for j, column in enumerate(columns):
+        frame[column].append(z[i][j])
+
+# Show the frame (dictionary of lists for each column)
+df=pd.DataFrame(frame)
+print(df)
+    
